@@ -29,7 +29,7 @@ volatile boolean CanConnected = false; // Флаг состояния соеди
 volatile boolean DisableSerialSpam = false; // Флаг для отладки (отключает режим чтения и отсылки сообщения CAN-BUS и RealDash-CAN)
 #include "GyverTimer.h"   // библиотека таймера
 GTimer PushPowerButtonTimer(MS, 10000); // Задержка до подачи сигнала для перехода в сон
-GTimer PowerSupplyDelayTimer(MS, 36000000); // Задержка до отключения питания платы
+GTimer PowerSupplyDelayTimer(MS, 7200000); // Задержка до отключения питания платы
 GTimer CanRetryTimer(MS, 1000); // Задержка между попытками подключиться к CAN-BUS
 //GTimer ButtonPressTimer(MS, 500);
 //unsigned long timing;
@@ -55,7 +55,7 @@ MCP_CAN CAN(SPI_CS_PIN); // Set CS pin
 // HALTECH TO CAN
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(2000000);
   
 // МОДУЛЬ ПИТАНИЯ
   pinMode(PIN_RELAY, OUTPUT); // Объявляем пин реле подачи питания платы как выход
