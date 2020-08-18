@@ -27,6 +27,7 @@ volatile boolean SleepStatus = true; // Флаг состояния нахожд
 volatile boolean CanInitStarted = false; // Флаг начала инициализации соединения CAN-BUS
 volatile boolean CanConnected = false; // Флаг состояния соединения CAN-BUS
 volatile boolean DisableSerialSpam = false; // Флаг для отладки (отключает режим чтения и отсылки сообщения CAN-BUS и RealDash-CAN)
+volatile boolean AnalogToCan = true;
 #include "GyverTimer.h"   // библиотека таймера
 GTimer PushPowerButtonTimer(MS, 10000); // Задержка до подачи сигнала для перехода в сон
 GTimer PowerSupplyDelayTimer(MS, 7200000); // Задержка до отключения питания платы
@@ -65,6 +66,12 @@ void setup() {
   attachInterrupt(1, AccChange, CHANGE); // Прерывания для функции контроля наличия напряжения ACC
   PushPowerButtonTimer.stop();
   PowerSupplyDelayTimer.stop();
+  CanRetryTimer.stop();
+  if (digitalRead(PIN_ACC) == HIGH) { // Если питание ACC появляется
+    delay(100);
+    if (digitalRead(PIN_ACC) == HIGH) {
+    AccFlag = true;
+      }}
 //  ButtonPressTimer.stop();
 // МОДУЛЬ ПИТАНИЯ
 }
@@ -124,7 +131,7 @@ void SendCANFrameToSerial(unsigned long canFrameId, const byte* frameData) {
 void loop() {
 // МОДУЛЬ ПИТАНИЯ
   if (AccFlag) { // Если Флаг изменения ACC поднят
-    delay(10); // Выждать для предотвращения дребезга контактов
+    delay(300); // Выждать для предотвращения дребезга контактов
     if (AccFlag) { // Проверить еще раз
       AccFlag = false;    // Cбрасываем Флаг
       int AccControl = digitalRead(PIN_ACC); // Считваем значение с датчика питания платы в отдельную переменную
@@ -150,14 +157,23 @@ void loop() {
     if (powerconrol == HIGH) { // Если питания на плате нет 
       digitalWrite(PIN_RELAY, LOW); // Включаем питание - посылаем низкий уровень сигнала
       Serial.println("Power Supply ON");
+      SleepStatus = false; // Сбрасываем флаг состояния нахождения в сон
+      CanInitStarted = false;
     }
     else {
-      if (SleepStatus) { // Проверяем флаг статуса режима сна (чтобы будить только в случае нахождения во сне)
+      if (SleepStatus == true) { // Проверяем флаг статуса режима сна (чтобы будить только в случае нахождения во сне)
+        SleepStatus = false; // Сбрасываем флаг состояния нахождения в сон
         Serial.println("Push power button to power on");
         digitalWrite(PIN_BUTTON, HIGH); // Нажимаем кнопку - посылаем высокий уровень сигнала
         delay(ButtonPressTime);
         digitalWrite(PIN_BUTTON, LOW); // Отпускаем кнопку - посылаем низкий уровень сигнала
         SleepStatus = false; // Сбрасываем флаг статуса режима сна
+        if (CanConnected == true) {
+          CAN.wake();
+          Serial.println("CAN wake");
+        } else {
+          CanInitStarted = false;
+        }
 //        ButtonPressTimer.reset();
 //        ButtonPressTimer.start();
       }
@@ -175,6 +191,10 @@ void loop() {
     delay(ButtonPressTime); // Выжидаем время импульса нажатия на кнопку
     digitalWrite(PIN_BUTTON, LOW); // Отпускаем кнопку - посылаем низкий уровень сигнала
     SleepStatus = true; // Устанавливаем флаг статуса нахождения в режиме сна
+    if (CanConnected == true) {
+      CAN.sleep();
+      Serial.println("CAN sleep");
+    }
 //    ButtonPressTimer.reset();
 //    ButtonPressTimer.start();
   }
@@ -203,30 +223,35 @@ void loop() {
 // МОДУЛЬ ПИТАНИЯ
 
 // ANALOG TO CAN
-  if (SleepStatus == false && DisableSerialSpam == false) {
-    ReadAnalogStatuses();
-    SendCANFramesToSerial();
-  }
+//  if (SleepStatus == false && DisableSerialSpam == false && AnalogToCan == true) {
+//    ReadAnalogStatuses();
+//    SendCANFramesToSerial();
+//  }
 // ANALOG TO CAN
 
 // HALTECH TO CAN
-  if (SleepStatus == false && DisableSerialSpam == false) {
-    if (CanInitStarted == false) {
-      if (CAN_OK == CAN.begin(CAN_1000KBPS, MCP_8MHz)) { // init can bus : baudrate = 1000k
-        CanRetryTimer.stop();
-        CanInitStarted = true;
-        CanConnected = true;
-        Serial.println("CAN BUS Shield init ok!");
-      } else {
-        CanInitStarted = true;
-        Serial.println("CAN BUS Shield init fail");
-        Serial.println(" Init CAN BUS Shield again");
-        CanRetryTimer.reset();
-        CanRetryTimer.start();
-  //      delay(100);
-      }
+  if (SleepStatus == false && DisableSerialSpam == false && CanInitStarted == false) {
+    Serial.println("CAN BUS INIT");
+    CanRetryTimer.reset();
+    CanRetryTimer.start();
+    CanInitStarted = true;
+//    if (CanInitStarted == false) {
+//      CanInitStarted = true;
+//      if (CAN_OK == CAN.begin(CAN_1000KBPS, MCP_8MHz)) { // init can bus : baudrate = 1000k
+//        CanRetryTimer.stop();
+//        CanConnected = true;
+//        Serial.println("CAN BUS Shield init ok!");
+//      } else {
+//        Serial.println("CAN BUS Shield init fail");
+//        Serial.println(" Init CAN BUS Shield again");
+//        CanRetryTimer.reset();
+//        CanRetryTimer.start();
+//  //      delay(100);
+//      }
     }
-    if (CanRetryTimer.isReady()) {
+     
+ if (CanRetryTimer.isReady()) {
+      Serial.println("CAN BUS TIMER");
       CanRetryTimer.stop();
       if (CAN_OK == CAN.begin(CAN_1000KBPS, MCP_8MHz)) { // init can bus : baudrate = 1000k
           Serial.println("CAN BUS Shield init ok!");
@@ -239,7 +264,7 @@ void loop() {
   //      delay(100);
       }
     }
-  }
+  
  
 // HALTECH TO CAN
 // HALTECH TO CAN
