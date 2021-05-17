@@ -158,7 +158,12 @@ void loop() {
       digitalWrite(PIN_RELAY, LOW); // Включаем питание - посылаем низкий уровень сигнала
       Serial.println("Power Supply ON");
       SleepStatus = false; // Сбрасываем флаг состояния нахождения в сон
-      CanInitStarted = false;
+      if (CanConnected == true) {
+        CAN.wake();
+        Serial.println("CAN wake");
+      } else {
+        CanInitStarted = false;
+      }
     }
     else {
       if (SleepStatus == true) { // Проверяем флаг статуса режима сна (чтобы будить только в случае нахождения во сне)
